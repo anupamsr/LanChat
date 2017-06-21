@@ -3,12 +3,15 @@
 #include <arpa/inet.h>
 #include <cstring>
 #include <unistd.h>
+#include <sys/poll.h>
 
 using namespace std;
 
-char const * const SERVER_PORT = "2000";
+char const *const SERVER_PORT = "2000";
+
 size_t const MAX_BUF_LEN = 250;
-int const TIMEOUT_DURATION = 1;
+
+int const TIMEOUT_DURATION = 5; /* Seconds */
 
 int
 main()
@@ -35,16 +38,27 @@ main()
             cerr << "Couldn't create socket, continuing..." << endl;
             continue;
         }
-        timeval duration;
-        duration.tv_sec = TIMEOUT_DURATION;
-        duration.tv_usec = 0;
-        if (setsockopt(server_socket, SOL_SOCKET, SO_RCVTIMEO, &duration, sizeof(duration)) < 0)
+
+        int yes = 1;
+        if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0)
         {
             close(server_socket);
             server_socket = -1;
-            cerr << "setsockout() failed to set SO_RCVTIMEO, continuing..." << endl;
+            cerr << "setsockopt() failed to set SO_REUSEADDR, continuing..." << endl;
             continue;
         }
+
+//        timeval duration;
+//        duration.tv_sec = TIMEOUT_DURATION;
+//        duration.tv_usec = 0;
+//        if (setsockopt(server_socket, SOL_SOCKET, SO_RCVTIMEO, &duration, sizeof(duration)) < 0)
+//        {
+//            close(server_socket);
+//            server_socket = -1;
+//            cerr << "setsockopt() failed to set SO_RCVTIMEO, continuing..." << endl;
+//            continue;
+//        }
+
         if (bind(server_socket, p->ai_addr, p->ai_addrlen) < 0)
         {
             close(server_socket);
@@ -52,7 +66,7 @@ main()
             cerr << "bind() failed, continuing..." << endl;
             continue;
         }
-        sockaddr_in * server_sockaddr = reinterpret_cast< sockaddr_in *> (p->ai_addr);
+        sockaddr_in *server_sockaddr = reinterpret_cast< sockaddr_in *> (p->ai_addr);
         char server_name[INET_ADDRSTRLEN];
         inet_ntop(p->ai_family, &(server_sockaddr->sin_addr), server_name, INET_ADDRSTRLEN);
         cout << "Bound to socket at " << server_name << ":" << ntohs(server_sockaddr->sin_port) << endl;
@@ -63,23 +77,48 @@ main()
     if (server_socket == -1)
     {
         cerr << "bind() failed" << endl;
+        return EXIT_FAILURE;
     }
 
+    /* Now poll for already existing server on the network */
+    pollfd server_pollfds[1];
+    memset(&server_pollfds[0], 0, sizeof(pollfd));
+    server_pollfds[0].fd = server_socket;
+    server_pollfds[0].events = POLLIN | POLLPRI | POLLHUP;
+    status = poll(server_pollfds, sizeof(server_pollfds) / sizeof(server_pollfds[0]), TIMEOUT_DURATION * 1000);
+
+    /* Read data from server, if available */
     char buffer[MAX_BUF_LEN];
     sockaddr client_addr;
     socklen_t client_addrlen;
-    ssize_t num_bytes = recvfrom(server_socket, buffer, sizeof(buffer), 0, &client_addr, &client_addrlen);
-    if (num_bytes < 0)
+    ssize_t num_bytes = -1;
+    switch (status)
     {
-        int err_no = errno;
-        if (err_no == EAGAIN || errno == EWOULDBLOCK)
-        {
-            cerr << "No data recieved in " << TIMEOUT_DURATION << " seconds." << endl;
-        }
-        else
-        {
-            cerr << "recvfrom() failed." << endl;
-        }
+        case -1:cerr << "poll() failed, " << status << endl;
+            return EXIT_FAILURE;
+        case 0:cerr << "No data received in " << TIMEOUT_DURATION << " seconds." << endl;
+        default:
+            if (server_pollfds[0].revents & POLLIN)
+            {
+                num_bytes = recvfrom(server_socket, buffer, sizeof(buffer), 0, &client_addr, &client_addrlen);
+            }
+            else if (server_pollfds[0].revents & POLLPRI)
+            {
+                num_bytes = recvfrom(server_socket, buffer, sizeof(buffer), MSG_OOB, &client_addr, &client_addrlen);
+            }
+            else if (server_pollfds[0].revents & POLLHUP)
+            {
+                cerr << "Remote server ended, continuing..." << endl;
+            }
+    }
+
+    if (num_bytes > 0)
+    {
+        cout << "Data received: <" << buffer << ">" << endl;
+    }
+    else
+    {
+        cout << "No data received." << endl;
     }
 
     close(server_socket);
