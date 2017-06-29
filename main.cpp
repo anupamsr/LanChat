@@ -1,10 +1,9 @@
 #include <pthread.h>
 #include <iostream>
+#include "Globals.h"
 #include "FindServer.h"
 
 using namespace std;
-
-char const *const SERVER_PORT = "2000";
 
 int
 main()
@@ -12,8 +11,9 @@ main()
     cout << "Search for server" << endl;
     FindServerParams findServerParams;
     findServerParams.port = SERVER_PORT;
-    findServerParams.duration = 5; /* Seconds */
-    findServerParams.bufLen = 250;
+    findServerParams.duration = CONN_TIMEOUT;
+    findServerParams.bufLen = MAX_BUF_LEN;
+    pthread_mutex_init(&client_list_m, NULL);
     pthread_t server_thread;
     pthread_attr_t attr;
     pthread_attr_init(&attr);
