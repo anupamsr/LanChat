@@ -1,4 +1,3 @@
-
 #ifndef LANCHAT_SINGLETON_H
 #define LANCHAT_SINGLETON_H
 
@@ -16,10 +15,10 @@ private:
     operator=(const Singleton &);
 
 public:
-    static T&
+    static T &
     getInstance()
     {
-         return instance;
+        return instance;
     }
 };
 

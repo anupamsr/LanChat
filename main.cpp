@@ -5,6 +5,8 @@
 
 using namespace std;
 
+pthread_mutex_t client_list_m;
+
 int
 main()
 {

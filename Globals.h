@@ -1,7 +1,3 @@
-//
-// Created by anupam on 26/6/17.
-//
-
 #ifndef LANCHAT_CONSTANTS_H_H
 #define LANCHAT_CONSTANTS_H_H
 
@@ -20,6 +16,6 @@ char const * const SERVER_REPLY = "SERVER LanChat client added";
 char const * const PUT_CLIENT_LIST = "LanChat v1 PUT CLIENT LIST";
 char const * const GET_CLIENT_LIST = "LanChat v1 GET CLIENT LIST";
 
-pthread_mutex_t client_list_m;
+extern pthread_mutex_t client_list_m;
 
 #endif //LANCHAT_CONSTANTS_H_H

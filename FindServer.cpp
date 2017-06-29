@@ -11,9 +11,19 @@
 using namespace std;
 
 void
-BecomeServer()
+BecomeServer(const int _server_socket)
 {
-    cout << "Assuming server role." << endl;
+    cout << "Updating clients of our intent to become server" << endl;
+    for (auto it = Singleton<std::map<string, Client> >::getInstance().cbegin();
+         it != Singleton<std::map<string, Client> >::getInstance().cend(); ++it)
+    {
+        if (it->second.is_connected)
+        {
+//            if (sendto(_server_socket, &SERVER_HEADER, sizeof(SERVER_HEADER), 0, ) == -1)
+//            {
+//            }
+        }
+    }
 }
 
 bool
@@ -82,36 +92,6 @@ SearchRemoteServer(const int _server_socket, FindServerParams &_findServerParams
         return false;
     }
     return false;
-}
-
-vector<string>
-RequestClientList(const int _server_socket)
-{
-    vector<string> connected_clients;
-    cout << "Requesting client list..." << endl;
-    if (send(_server_socket, GET_CLIENT_LIST, sizeof(GET_CLIENT_LIST), 0) == -1)
-    {
-        cerr << "Failed to do handshake." << endl;
-        return connected_clients;
-    }
-    ssize_t num_bytes = recv(_server_socket, buffer, sizeof(buffer) - 1, 0);
-    if (num_bytes == -1)
-    {
-        cerr << "Error receiving data." << endl;
-        return connected_clients;
-    }
-    return connected_clients;
-}
-
-void
-UpdateClientList(const vector<string> &_connected_clients)
-{
-    for (auto it = _connected_clients.cbegin(); it != _connected_clients.cend(); ++it)
-    {
-        pthread_mutex_lock(&client_list_m);
-        Singleton<std::map<string, Client> >::getInstance().operator[](*it).address = *it;
-        pthread_mutex_unlock(&client_list_m);
-    }
 }
 
 bool
@@ -221,29 +201,67 @@ SendClientList(const int _server_socket)
     return EXIT_SUCCESS;
 }
 
-void *
-FindServer(void *_findServerParams)
+vector<string>
+RequestClientList(const int _server_socket)
 {
-    FindServerParams *findServerParams = reinterpret_cast<FindServerParams *>(_findServerParams);
-    if (findServerParams == NULL)
+    vector<string> connected_clients;
+    cout << "Requesting client list..." << endl;
+    if (send(_server_socket, GET_CLIENT_LIST, sizeof(GET_CLIENT_LIST), 0) == -1)
     {
-        cerr << "No server parameters passed?" << endl;
-        return THREAD_RETURN(EXIT_FAILURE);
+        cerr << "Failed to do handshake." << endl;
+        return connected_clients;
     }
-    addrinfo hints, *results, *server_addrinfo = nullptr;
+
+    uint32_t size;
+    if (recv(_server_socket, &size, sizeof(size), 0) == -1)
+    {
+        cerr << "Error receiving data." << endl;
+        return connected_clients;
+    }
+
+    size = ntohl(size);
+    for (auto i = 0; i < size; ++i)
+    {
+        char buffer[MAX_BUF_LEN];
+        if (recv(_server_socket, &buffer, sizeof(buffer) - 1, 0) == -1)
+        {
+            cerr << "Error receiving data." << endl;
+            break;
+        }
+        buffer[sizeof(buffer) - 1] = '\0';
+        connected_clients.push_back(string(buffer));
+    }
+    return connected_clients;
+}
+
+void
+UpdateClientList(const vector<string> &_connected_clients)
+{
+    for (auto it = _connected_clients.cbegin(); it != _connected_clients.cend(); ++it)
+    {
+        pthread_mutex_lock(&client_list_m);
+        Singleton<std::map<string, Client> >::getInstance().operator[](*it).address = *it;
+        pthread_mutex_unlock(&client_list_m);
+    }
+}
+
+int
+WaitForServer(const FindServerParams &_findServerParams, addrinfo &_server_addrinfo)
+{
+    int server_socket = -1;
+    addrinfo hints, *results;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_DGRAM;
     hints.ai_flags = AI_PASSIVE;
 
-    int status = getaddrinfo("localhost", findServerParams->port, &hints, &results);
+    int status = getaddrinfo("localhost", _findServerParams.port, &hints, &results);
     if (status < 0)
     {
         cerr << "getaddrinfo() failed, " << gai_strerror(status) << endl;
-        return THREAD_RETURN(EXIT_FAILURE);
+        return server_socket;
     }
 
-    int server_socket = -1;
     for (addrinfo *p = results; p != NULL; p = p->ai_next)
     {
         server_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
@@ -278,14 +296,30 @@ FindServer(void *_findServerParams)
             cerr << "bind() failed, continuing..." << endl;
             continue;
         }
-        server_addrinfo = p;
         sockaddr_in *server_sockaddr_in = reinterpret_cast< sockaddr_in *>(p->ai_addr);
         char server_name[INET_ADDRSTRLEN];
         inet_ntop(p->ai_family, &(server_sockaddr_in->sin_addr), server_name, INET_ADDRSTRLEN);
         cout << "Bound to socket at " << server_name << ":" << ntohs(server_sockaddr_in->sin_port) << endl;
-        break;
+        memcpy(p, &_server_addrinfo, sizeof(p));
+        return server_socket;
     }
 
+    freeaddrinfo(results);
+    return server_socket;
+}
+
+void *
+FindServer(void *_findServerParams)
+{
+    FindServerParams *findServerParams = reinterpret_cast<FindServerParams *>(_findServerParams);
+    if (findServerParams == NULL)
+    {
+        cerr << "No server parameters passed?" << endl;
+        return THREAD_RETURN(EXIT_FAILURE);
+    }
+
+    addrinfo server_addrinfo;
+    int server_socket = WaitForServer(*findServerParams, server_addrinfo);
     if (server_socket == -1)
     {
         cerr << "bind() failed" << endl;
@@ -293,16 +327,16 @@ FindServer(void *_findServerParams)
     }
 
     bool i_am_server = false;
-    while (true_condition)
+    while (true)
     {
         if (SearchRemoteServer(server_socket, *findServerParams))
         {
-            if (!EstablishConnection(server_socket, *findServerParams, *server_addrinfo))
+            if (!EstablishConnection(server_socket, *findServerParams, server_addrinfo))
             {
                 cerr << "Failed to connect, continuing..." << endl;
                 continue;
             }
-            vector<string> remote_client_list = RequestClientList();
+            vector<string> remote_client_list = RequestClientList(server_socket);
             UpdateClientList(remote_client_list);
             vector<Client> connected_clients;
             for (auto it = Singleton<std::map<string, Client> >::getInstance().cbegin();
@@ -322,19 +356,19 @@ FindServer(void *_findServerParams)
                 }
                 else
                 {
-                    InformClients();
-                    KillServer();
+//                    InformClients();
+//                    KillServer();
                     i_am_server = false;
                 }
             }
         }
         else
         {
-            BecomeServer();
+            BecomeServer(server_socket);
             i_am_server = true;
         }
     }
-    freeaddrinfo(results);
+
     close(server_socket);
     return THREAD_RETURN(EXIT_SUCCESS);
 }
