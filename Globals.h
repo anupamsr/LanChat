@@ -1,9 +1,12 @@
-#ifndef LANCHAT_CONSTANTS_H_H
-#define LANCHAT_CONSTANTS_H_H
+#ifndef LANCHAT_GLOBALS_H
+#define LANCHAT_GLOBALS_H
 
 #include <pthread.h>
+#include <string>
+#include <map>
+#include "Client.h"
 
-#define THREAD_RETURN(retVal) reinterpret_cast<void *>(retVal);
+#define THREAD_EXIT(retVal) return reinterpret_cast<void *>(retVal);
 
 char const *const SERVER_PORT = "2000";
 
@@ -15,7 +18,10 @@ char const * const CLIENT_HEADER = "CLIENT LanChat v1";
 char const * const SERVER_REPLY = "SERVER LanChat client added";
 char const * const PUT_CLIENT_LIST = "LanChat v1 PUT CLIENT LIST";
 char const * const GET_CLIENT_LIST = "LanChat v1 GET CLIENT LIST";
+char const * const SERVER_CLOSING = "SERVER LanChat v1 Closing";
 
 extern pthread_mutex_t client_list_m;
 
-#endif //LANCHAT_CONSTANTS_H_H
+typedef std::map<std::string, Client> ClientMap;
+
+#endif //LANCHAT_GLOBALS_H

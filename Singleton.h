@@ -22,5 +22,7 @@ public:
     }
 };
 
+/* Static member variables must have fully qualified declarations outside class definition */
+template<typename T> T Singleton<T>::instance;
 
 #endif //LANCHAT_SINGLETON_H

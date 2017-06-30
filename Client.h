@@ -8,7 +8,7 @@ struct Client
 {
     std::string address;
     std::string name;
-    bool is_connected;
+    int socket;
 
     Client();
 };

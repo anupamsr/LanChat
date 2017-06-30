@@ -2,5 +2,5 @@
 #include <stdexcept>
 
 Client::Client()
-    : address(), name(), is_connected(false)
+    : address(), name(), socket(-1)
 {}
