@@ -11,7 +11,16 @@ struct Client
     int socket;
 
     Client();
+    Client(const std::string &_address);
 };
 
+void
+StartClient();
+
+bool
+SendToServer(std::string &_chat_text);
+
+int
+SendToClient(std::string &_handle, std::string &_chat_text);
 
 #endif //LANCHAT_CLIENT_H
