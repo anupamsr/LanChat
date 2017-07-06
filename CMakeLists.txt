@@ -3,7 +3,13 @@ project(LanChat)
 
 set(CMAKE_CXX_STANDARD 11)
 
-set(SOURCE_FILES main.cpp Server.cpp Server.h Singleton.h Globals.h Client.h Client.cpp INIFile.cpp INIFile.h Singleton.cpp Connect.h Connect.cpp)
-add_executable(LanChat ${SOURCE_FILES})
+set(SOURCE_FILES main.cpp Server.cpp Server.h Client.cpp Client.h)
 
-target_link_libraries(LanChat pthread log4cxx)
+set(Boost_USE_MULTITHREADED ON)
+find_package(Boost 1.40.0 REQUIRED system thread)
+
+if(Boost_FOUND)
+    include_directories(${Boost_INCLUDE_DIRS})
+    add_executable(LanChat ${SOURCE_FILES})
+    target_link_libraries(LanChat ${Boost_LIBRARIES} ws2_32)
+endif()

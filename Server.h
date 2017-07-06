@@ -1,17 +1,7 @@
-#ifndef LANCHAT_SERVER_H
-#define LANCHAT_SERVER_H
+#ifndef LANCHAT_MANAGESERVER_H
+#define LANCHAT_MANAGESERVER_H
 
-#include <unistd.h>
-#include <netdb.h>
+void ManageServer(const int _port, const boost::chrono::seconds & _interval);
 
-struct ManageServerParams
-{
-    char const *port;
-    int duration;
-    size_t buf_len;
-};
 
-void *
-ManageServer(void *_manage_server_params);
-
-#endif //LANCHAT_SERVER_H
+#endif //LANCHAT_MANAGESERVER_H
