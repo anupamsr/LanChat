@@ -1,0 +1,6 @@
+[submodule "thirdparty/rapidjson"]
+	path = thirdparty/rapidjson
+	url = https://github.com/Tencent/rapidjson.git
+[submodule "thirdparty/restbed"]
+	path = thirdparty/restbed
+	url = https://github.com/corvusoft/restbed.git
